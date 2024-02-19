@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Drive</title>
+    <style>
+        #fixedButtons {
+            position: fixed;
+            top: 0;
+            left: 0;
+            background: #f0f0f0;
+            padding: 10px;
+            z-index: 1000;
+            margin-bottom: 20px;
+        }
+
+        body {
+            padding-top: 40px;
+        }
+
+        #fixedButtons a, #fixedButtons button {
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="fixedButtons">
+        <a id="login" href="#">Login with Google</a>
+        <button id="logout" onclick="logout()">Logout</button>
+        <button id="showListFilesPage" onclick="showPage('fileListPage')">List Files Page</button>
+        <button id="showUploadFilePage" onclick="showPage('uploadFilePage')">Upload File Page</button>
+        <button id="showDeleteFilePage" onclick="showPage('deleteFilePage')">Delete File Page</button>
+        <button id="showMoveFilePage" onclick="showPage('moveFilePage')">Move File Page</button>
+        <button id="showeditFilePage" onclick="showPage('editFilePage')">Edit File Page</button>
+    </div>
+
+    <div id="homePage">
+        <h1>Google Drive using FastApi</h1>
+    </div>
+
+    <div id="fileListPage" style="display: none;">
+        <h2>File List</h2>
+        <button onclick="getListOfFiles()">List Files</button>
+        <div id="fileList"></div>
+    </div>
+
+    <div id="uploadFilePage" style="display: none;">
+        <h2>Upload File</h2>
+        <input type="file" id="fileInput" />
+        <button onclick="uploadFile()">Upload</button>
+        <div id="uploadMessage" style="color: black;"></div>
+    </div>
+
+    <div id="deleteFilePage" style="display: none;">
+        <h2>Delete File</h2>
+        <input type="text" id="deleteFileId" placeholder="File ID" />
+        <button onclick="deleteFile()">Delete</button>
+        <div id="deleteMessage" style="color: black;"></div>
+    </div>
+
+    <div id="moveFilePage" style="display: none;">
+        <h2>Move File</h2>
+        <input type="text" id="moveFileId" placeholder="File ID" />
+        <input type="text" id="targetDirectory" placeholder="Target Directory" />
+        <button onclick="moveFile()">Move</button>
+        <div id="moveMessage" style="color: black;"></div>
+    </div>
+
+    <div id="editFilePage" style="display: none;">
+        <h2>Edit File</h2>
+        <input type="text" id="editFileId" placeholder="File ID" />
+        <input type="text" id="newContent" placeholder="New content" />
+        <button onclick="editFile()">Edit</button>
+        <div id="editMessage" style="color: black;"></div>
+    </div>
+
+    <script>
+        function displayMessage(message, isError, elId) {
+            const messageElement = document.getElementById(elId);
+            messageElement.textContent = message;
+
+            if (isError) {
+                messageElement.style.color = 'red';
+            } else {
+                messageElement.style.color = 'black';
+            }
+        }
+
+        function removeMessage(elId) {
+            const messageElement = document.getElementById(elId);
+            messageElement.textContent = '';
+        }
+
+        function showPage(pageId) {
+            document.getElementById('homePage').style.display = 'none';
+            document.getElementById('fileListPage').style.display = 'none';
+            document.getElementById('uploadFilePage').style.display = 'none';
+            document.getElementById('deleteFilePage').style.display = 'none';
+            document.getElementById('moveFilePage').style.display = 'none';
+            document.getElementById('editFilePage').style.display = 'none';
+
+            document.getElementById(pageId).style.display = 'block';
+        }
+
+        function logout() {
+            fetch('/logout', {
+                method: 'POST'
+            })
+            var loginButton = document.getElementById('login');
+            var logoutButton = document.getElementById('logout');
+            var p_element = document.getElementById('greeting');
+
+            loginButton.style.display = 'block';
+            logoutButton.style.display = 'none';
+            p_element.remove();
+            location.reload()
+
+        }
+
+        function listFiles(response) {
+            const fileListElement = document.getElementById('fileList');
+            fileListElement.innerHTML = '';
+
+            function createList(items) {
+                const list = document.createElement('ul');
+                items.forEach(item => {
+                    const listItem = document.createElement('li');
+                    listItem.textContent = `title: ${item.title} | id :${item.id}`;
+
+                    if (item.file_type === 'directory' && item.content && item.content.length > 0) {
+                        listItem.appendChild(createList(item.content));
+                    }
+
+                    list.appendChild(listItem);
+                });
+                return list;
+            }
+
+            const fileList = createList(response.files);
+            fileListElement.appendChild(fileList);
+        }
+
+        function getListOfFiles() {
+            const url = '/list_files';
+
+            fetch(url)
+                .then(response => response.json())
+                .then(data => listFiles(data))
+                .catch(error => console.error('Error fetching data:', error));
+        }
+
+        function addFileToList(file, list) {
+            const listItem = document.createElement('li');
+            listItem.textContent = `Title: ${file.title}, ID: ${file.id}`;
+            list.appendChild(listItem);
+        }
+
+        function uploadFile() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            removeMessage('uploadMessage');
+
+            if (file) {
+                const formData = new FormData();
+                formData.append('file', file);
+
+                var isError = false;
+
+                fetch('/upload_file', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => {
+                    if (response.status === 400) {
+                        isError = true;
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    displayMessage(data.detail, isError, 'uploadMessage');
+                    fileInput.value = '';
+                });
+            } else {
+                console.error('No file selected.');
+            }
+        }
+
+        function deleteFile() {
+            const fileId = document.getElementById('deleteFileId').value;
+            var isError = false;
+            removeMessage('deleteMessage');
+
+            fetch(`/delete_file?file_id=${fileId}`, {
+                method: 'DELETE'
+            })
+            .then(response => {
+                if (response.status === 400) {
+                    isError = true;
+                }
+                return response.json();
+            })
+            .then(data => {
+                displayMessage(data.detail, isError, 'deleteMessage');
+            });
+        }
+
+        function moveFile() {
+            const fileId = document.getElementById('moveFileId').value;
+            const targetDirectory = document.getElementById('targetDirectory').value;
+            var isError = false;
+            removeMessage('moveMessage');
+
+            fetch(`/move_file?file_id=${fileId}&folder_id=${targetDirectory}`, {
+                method: 'PUT'
+            })
+            .then(response => {
+                if (response.status === 400) {
+                    isError = true;
+                }
+                return response.json();
+            })
+            .then(data => {
+                displayMessage(data.detail, isError, 'moveMessage');
+            });
+        }
+
+        function editFile() {
+            const fileId = document.getElementById('editFileId').value;
+            const newContent = document.getElementById('newContent').value;
+            var isError = false;
+            removeMessage('editMessage');
+
+            fetch(`/edit_file?file_id=${fileId}&new_content=${newContent}`, {
+                method: 'PUT'
+            })
+            .then(response => {
+                if (response.status === 400) {
+                    isError = true;
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log(data)
+                displayMessage(data.detail, isError, 'editMessage');
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            fetch('/user', {
+                method: 'GET'
+            })
+            .then(response => response.json())
+            .then(data => {
+                var loginButton = document.getElementById('login');
+                var logoutButton = document.getElementById('logout');
+                var home_page = document.getElementById('homePage');
+                if ('auth' in data) {
+                    logoutButton.style.display = "none";
+                    loginButton.href = data.auth;
+                } else if ('user_data' in data) {
+                    var paragraph = document.createElement("p");
+                    paragraph.textContent = `Welcome, ${data.user_data.email}`;
+                    paragraph.id = "greeting"
+                    loginButton.style.display = "none";
+                    logoutButton.style.display = "block";
+                    home_page.appendChild(paragraph);
+                }
+            });
+        });
+    </script>
+</body>
+</html>

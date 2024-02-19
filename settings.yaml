@@ -1,0 +1,12 @@
+client_config_backend: settings
+client_config:
+  client_id: 841147043677-8do076554g7bls9akanjushp2h1isp24.apps.googleusercontent.com
+  client_secret: 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
+  redirect_uri: http://127.0.0.1:8000/auth
+
+get_refresh_token: True
+
+oauth_scope:
+  - https://www.googleapis.com/auth/drive
+  - https://www.googleapis.com/auth/userinfo.email
+  - https://www.googleapis.com/auth/userinfo.profile
